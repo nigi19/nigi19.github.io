@@ -412,7 +412,12 @@ input:focus, select:focus {
   .rankings-grid { grid-template-columns: 1fr 1fr; }
   .search-bar { flex-direction: column; }
   .search-bar input[type="text"], .search-bar select { width: 100%; }
-  .beer-table th:nth-child(4), .beer-table td:nth-child(4) { display: none; }
   .topnav__links { gap: 0; }
   .topnav__link { padding: 6px 8px; font-size: 0.8rem; }
+
+  /* Beer table: keep Name, ABV, Log — hide the rest */
+  .beer-table th:nth-child(2), .beer-table td:nth-child(2),
+  .beer-table th:nth-child(3), .beer-table td:nth-child(3),
+  .beer-table th:nth-child(5), .beer-table td:nth-child(5) { display: none; }
+  .beer-table td:last-child { white-space: nowrap; }
 }
