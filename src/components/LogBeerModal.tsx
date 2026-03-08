@@ -20,16 +20,24 @@ export default function LogBeerModal({ beer, onClose, onLogged }: Props) {
   const [volumeMl, setVolumeMl] = useState(330);
   const [consumedAt, setConsumedAt] = useState(toDatetimeLocal(new Date()));
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!session) return;
     if (volumeMl <= 0 || volumeMl > 5000) {
       setError('Volume must be between 1 and 5000 ml.');
       return;
     }
-    addLog(session.userId, beer, volumeMl, new Date(consumedAt));
-    onLogged();
+    setSaving(true);
+    try {
+      await addLog(session.userId, session.email, beer, volumeMl, new Date(consumedAt));
+      onLogged();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to log beer.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -81,10 +89,10 @@ export default function LogBeerModal({ beer, onClose, onLogged }: Props) {
           </div>
 
           <div className="modal-actions">
-            <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
-              Log it!
+            <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={saving}>
+              {saving ? 'Saving…' : 'Log it!'}
             </button>
-            <button type="button" className="btn btn-secondary" onClick={onClose}>
+            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>
               Cancel
             </button>
           </div>

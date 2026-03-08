@@ -1,28 +1,24 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
-import { getAllLogs } from '../lib/stats';
-import { getAllUsers } from '../lib/auth';
-import {
-  getMostVolumeRanking,
-  getMostBeersRanking,
-  getHighestAbvRanking,
-  getMostDistinctBeersRanking,
-} from '../lib/stats';
-import { TimeRange, TimeRangePreset } from '../types';
-import {
-  getThisWeekRange,
-  getLastWeekRange,
-  getThisMonthRange,
-  getLastMonthRange,
-} from '../lib/dates';
+import { getAllLogs, getMostVolumeRanking, getMostBeersRanking, getHighestAbvRanking, getMostDistinctBeersRanking } from '../lib/stats';
+import { DrinkLog, TimeRange, TimeRangePreset } from '../types';
+import { getThisWeekRange, getLastWeekRange, getThisMonthRange, getLastMonthRange } from '../lib/dates';
 import TimeRangeSelector from '../components/TimeRangeSelector';
 import RankingCard from '../components/Rankings/RankingCard';
 
 export default function HomePage() {
   const { session } = useAuth();
+  const [logs, setLogs] = useState<DrinkLog[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const [preset, setPreset] = useState<TimeRangePreset>('this-week');
   const [customRange, setCustomRange] = useState<TimeRange>(getThisWeekRange());
+
+  useEffect(() => {
+    getAllLogs()
+      .then(setLogs)
+      .finally(() => setLoading(false));
+  }, []);
 
   function getRange(): TimeRange {
     switch (preset) {
@@ -35,13 +31,10 @@ export default function HomePage() {
   }
 
   const range = getRange();
-  const logs = getAllLogs();
-  const users = getAllUsers();
-
-  const volumeRanking   = getMostVolumeRanking(logs, users, range);
-  const beersRanking    = getMostBeersRanking(logs, users, range);
-  const abvRanking      = getHighestAbvRanking(logs, users, range);
-  const distinctRanking = getMostDistinctBeersRanking(logs, users, range);
+  const volumeRanking   = getMostVolumeRanking(logs, range);
+  const beersRanking    = getMostBeersRanking(logs, range);
+  const abvRanking      = getHighestAbvRanking(logs, range);
+  const distinctRanking = getMostDistinctBeersRanking(logs, range);
 
   return (
     <>
@@ -57,12 +50,16 @@ export default function HomePage() {
         onCustomRangeChange={setCustomRange}
       />
 
-      <div className="rankings-grid">
-        <RankingCard title="Most beer (litres)" entries={volumeRanking} />
-        <RankingCard title="Most beers (count)" entries={beersRanking} />
-        <RankingCard title="Highest ABV" entries={abvRanking} />
-        <RankingCard title="Most unique beers" entries={distinctRanking} />
-      </div>
+      {loading ? (
+        <div className="loading"><div className="spinner" /></div>
+      ) : (
+        <div className="rankings-grid">
+          <RankingCard title="Most beer (litres)" entries={volumeRanking} />
+          <RankingCard title="Most beers (count)" entries={beersRanking} />
+          <RankingCard title="Highest ABV" entries={abvRanking} />
+          <RankingCard title="Most unique beers" entries={distinctRanking} />
+        </div>
+      )}
     </>
   );
 }

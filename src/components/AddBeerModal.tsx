@@ -9,6 +9,7 @@ interface Props {
   onAdded: (beer: Beer) => void;
 }
 
+
 const NEW_VALUE_SENTINEL = '__new__';
 
 interface ComboFieldProps {
@@ -79,8 +80,9 @@ export default function AddBeerModal({ db, onClose, onAdded }: Props) {
   const [country, setCountry] = useState('');
   const [abv, setAbv] = useState('');
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     const abvNum = parseFloat(abv);
     if (!name.trim()) { setError('Name is required.'); return; }
@@ -91,14 +93,21 @@ export default function AddBeerModal({ db, onClose, onAdded }: Props) {
     }
     const resolvedStyle = style === NEW_VALUE_SENTINEL ? '' : style.trim();
     const resolvedCountry = country === NEW_VALUE_SENTINEL ? '' : country.trim();
-    const beer = addCustomBeer(db, {
-      name: name.trim(),
-      brewery: brewery.trim(),
-      style: resolvedStyle,
-      abv: abvNum,
-      country: resolvedCountry,
-    });
-    onAdded(beer);
+    setSaving(true);
+    try {
+      const beer = await addCustomBeer(db, {
+        name: name.trim(),
+        brewery: brewery.trim(),
+        style: resolvedStyle,
+        abv: abvNum,
+        country: resolvedCountry,
+      });
+      onAdded(beer);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add beer.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -165,10 +174,10 @@ export default function AddBeerModal({ db, onClose, onAdded }: Props) {
           />
 
           <div className="modal-actions">
-            <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
-              Add beer
+            <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={saving}>
+              {saving ? 'Saving…' : 'Add beer'}
             </button>
-            <button type="button" className="btn btn-secondary" onClick={onClose}>
+            <button type="button" className="btn btn-secondary" onClick={onClose} disabled={saving}>
               Cancel
             </button>
           </div>

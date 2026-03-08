@@ -2,20 +2,21 @@
  * stats.ts
  *
  * Pure functions for computing leaderboard rankings and personal stats
- * from a list of DrinkLog entries.
+ * from a list of DrinkLog entries, plus async helpers for reading/writing
+ * logs via Supabase.
  */
 
-import { DrinkLog, RankingEntry, TimeRange, User } from '../types';
+import { DrinkLog, RankingEntry, TimeRange } from '../types';
 import { filterByDateRange } from './dates';
+import { supabase } from './supabase';
+import { Beer } from '../types';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Group logs by userId within the given time range. */
 function groupByUser(
   logs: DrinkLog[],
-  _users: User[],
   range: TimeRange,
 ): Map<string, DrinkLog[]> {
   const filtered = filterByDateRange(logs, range);
@@ -28,95 +29,75 @@ function groupByUser(
   return map;
 }
 
-/** Build a sorted RankingEntry array from a userId→value map. */
+function buildEmailMap(logs: DrinkLog[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const log of logs) {
+    if (!map.has(log.userId)) map.set(log.userId, log.userEmail);
+  }
+  return map;
+}
+
 function toRanking(
   valueMap: Map<string, number>,
-  users: User[],
+  emailMap: Map<string, string>,
   format: (v: number) => string,
 ): RankingEntry[] {
-  const userIndex = new Map(users.map((u) => [u.id, u]));
   return Array.from(valueMap.entries())
-    .map(([userId, value]) => {
-      const user = userIndex.get(userId);
-      return {
-        userId,
-        email: user?.email ?? userId,
-        value,
-        formattedValue: format(value),
-      };
-    })
+    .map(([userId, value]) => ({
+      userId,
+      email: emailMap.get(userId) ?? userId,
+      value,
+      formattedValue: format(value),
+    }))
     .sort((a, b) => b.value - a.value || a.email.localeCompare(b.email));
 }
 
 // ---------------------------------------------------------------------------
-// Leaderboard functions
+// Leaderboard functions (pure, synchronous)
 // ---------------------------------------------------------------------------
 
-/** Ranking by total volume consumed (shown in litres). */
-export function getMostVolumeRanking(
-  logs: DrinkLog[],
-  users: User[],
-  range: TimeRange,
-): RankingEntry[] {
-  const byUser = groupByUser(logs, users, range);
+export function getMostVolumeRanking(logs: DrinkLog[], range: TimeRange): RankingEntry[] {
+  const byUser = groupByUser(logs, range);
+  const emailMap = buildEmailMap(logs);
   const valueMap = new Map<string, number>();
   for (const [userId, userLogs] of byUser) {
-    const totalMl = userLogs.reduce((sum, l) => sum + l.volumeMl, 0);
-    valueMap.set(userId, totalMl);
+    valueMap.set(userId, userLogs.reduce((sum, l) => sum + l.volumeMl, 0));
   }
-  return toRanking(valueMap, users, (v) => `${(v / 1000).toFixed(1)} L`);
+  return toRanking(valueMap, emailMap, (v) => `${(v / 1000).toFixed(1)} L`);
 }
 
-/** Ranking by number of individual logs (drinks). */
-export function getMostBeersRanking(
-  logs: DrinkLog[],
-  users: User[],
-  range: TimeRange,
-): RankingEntry[] {
-  const byUser = groupByUser(logs, users, range);
+export function getMostBeersRanking(logs: DrinkLog[], range: TimeRange): RankingEntry[] {
+  const byUser = groupByUser(logs, range);
+  const emailMap = buildEmailMap(logs);
   const valueMap = new Map<string, number>();
   for (const [userId, userLogs] of byUser) {
     valueMap.set(userId, userLogs.length);
   }
-  return toRanking(valueMap, users, (v) =>
-    v === 1 ? '1 beer' : `${v} beers`,
-  );
+  return toRanking(valueMap, emailMap, (v) => v === 1 ? '1 beer' : `${v} beers`);
 }
 
-/** Ranking by the single highest-ABV beer consumed. */
-export function getHighestAbvRanking(
-  logs: DrinkLog[],
-  users: User[],
-  range: TimeRange,
-): RankingEntry[] {
-  const byUser = groupByUser(logs, users, range);
+export function getHighestAbvRanking(logs: DrinkLog[], range: TimeRange): RankingEntry[] {
+  const byUser = groupByUser(logs, range);
+  const emailMap = buildEmailMap(logs);
   const valueMap = new Map<string, number>();
   for (const [userId, userLogs] of byUser) {
-    const max = Math.max(...userLogs.map((l) => l.abv));
-    valueMap.set(userId, max);
+    valueMap.set(userId, Math.max(...userLogs.map((l) => l.abv)));
   }
-  return toRanking(valueMap, users, (v) => `${v.toFixed(1)}% ABV`);
+  return toRanking(valueMap, emailMap, (v) => `${v.toFixed(1)}% ABV`);
 }
 
-/** Ranking by number of distinct beers (unique beer IDs). */
-export function getMostDistinctBeersRanking(
-  logs: DrinkLog[],
-  users: User[],
-  range: TimeRange,
-): RankingEntry[] {
-  const byUser = groupByUser(logs, users, range);
+export function getMostDistinctBeersRanking(logs: DrinkLog[], range: TimeRange): RankingEntry[] {
+  const byUser = groupByUser(logs, range);
+  const emailMap = buildEmailMap(logs);
   const valueMap = new Map<string, number>();
   for (const [userId, userLogs] of byUser) {
-    const distinct = new Set(userLogs.map((l) => l.beerId)).size;
-    valueMap.set(userId, distinct);
+    valueMap.set(userId, new Set(userLogs.map((l) => l.beerId)).size);
   }
-  return toRanking(valueMap, users, (v) =>
-    v === 1 ? '1 unique' : `${v} unique`,
-  );
+  return toRanking(valueMap, emailMap, (v) => v === 1 ? '1 unique' : `${v} unique`);
 }
 
 // ---------------------------------------------------------------------------
-// Personal stats (single user)
+// Personal stats (pure, synchronous)
 // ---------------------------------------------------------------------------
 
 export interface PersonalStats {
@@ -131,71 +112,73 @@ export function getPersonalStats(logs: DrinkLog[]): PersonalStats {
   if (logs.length === 0) {
     return { totalLogged: 0, totalLitres: 0, averageAbv: 0, distinctBeers: 0, highestAbv: 0 };
   }
-  const totalLitres = logs.reduce((s, l) => s + l.volumeMl, 0) / 1000;
-  const averageAbv = logs.reduce((s, l) => s + l.abv, 0) / logs.length;
-  const distinctBeers = new Set(logs.map((l) => l.beerId)).size;
-  const highestAbv = Math.max(...logs.map((l) => l.abv));
   return {
     totalLogged: logs.length,
-    totalLitres,
-    averageAbv,
-    distinctBeers,
-    highestAbv,
+    totalLitres: logs.reduce((s, l) => s + l.volumeMl, 0) / 1000,
+    averageAbv: logs.reduce((s, l) => s + l.abv, 0) / logs.length,
+    distinctBeers: new Set(logs.map((l) => l.beerId)).size,
+    highestAbv: Math.max(...logs.map((l) => l.abv)),
   };
 }
 
 // ---------------------------------------------------------------------------
-// Log store helpers
+// Supabase log helpers
 // ---------------------------------------------------------------------------
 
-import { storage, STORAGE_KEYS } from './storage';
-import { v4 as uuidv4 } from 'uuid';
-import { Beer } from '../types';
-
-export function getAllLogs(): DrinkLog[] {
-  return storage.get<DrinkLog[]>(STORAGE_KEYS.LOGS) ?? [];
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function rowToLog(row: any): DrinkLog {
+  return {
+    id: String(row.id),
+    userId: String(row.user_id),
+    userEmail: String(row.user_email),
+    beerId: String(row.beer_id),
+    beerName: String(row.beer_name),
+    volumeMl: Number(row.volume_ml),
+    abv: Number(row.abv),
+    consumedAt: String(row.consumed_at),
+    createdAt: String(row.created_at),
+  };
 }
 
-export function getLogsForUser(userId: string): DrinkLog[] {
-  return getAllLogs().filter((l) => l.userId === userId);
+export async function getAllLogs(): Promise<DrinkLog[]> {
+  const { data, error } = await supabase
+    .from('drink_logs')
+    .select('*')
+    .order('consumed_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(rowToLog);
 }
 
-export function addLog(
+export async function getLogsForUser(userId: string): Promise<DrinkLog[]> {
+  const { data, error } = await supabase
+    .from('drink_logs')
+    .select('*')
+    .eq('user_id', userId)
+    .order('consumed_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map(rowToLog);
+}
+
+export async function addLog(
   userId: string,
+  userEmail: string,
   beer: Beer,
   volumeMl: number,
   consumedAt: Date,
-): DrinkLog {
-  const log: DrinkLog = {
-    id: uuidv4(),
-    userId,
-    beerId: beer.id,
-    beerName: beer.name,
-    volumeMl,
-    abv: beer.abv,
-    consumedAt: consumedAt.toISOString(),
-    createdAt: new Date().toISOString(),
-  };
-  const logs = getAllLogs();
-  storage.set(STORAGE_KEYS.LOGS, [...logs, log]);
-  return log;
-}
-
-export function exportLogsJson(): string {
-  return JSON.stringify(getAllLogs(), null, 2);
-}
-
-export function importLogsJson(json: string): { imported: number } {
-  const incoming = JSON.parse(json) as DrinkLog[];
-  const existing = getAllLogs();
-  const existingIds = new Set(existing.map((l) => l.id));
-  const novel = incoming.filter((l) => !existingIds.has(l.id));
-  storage.set(STORAGE_KEYS.LOGS, [...existing, ...novel]);
-  return { imported: novel.length };
-}
-
-export function clearAllData(): void {
-  storage.remove(STORAGE_KEYS.LOGS);
-  storage.remove(STORAGE_KEYS.USERS);
-  storage.remove(STORAGE_KEYS.SESSION);
+): Promise<DrinkLog> {
+  const { data, error } = await supabase
+    .from('drink_logs')
+    .insert({
+      user_id: userId,
+      user_email: userEmail,
+      beer_id: beer.id,
+      beer_name: beer.name,
+      volume_ml: volumeMl,
+      abv: beer.abv,
+      consumed_at: consumedAt.toISOString(),
+    })
+    .select()
+    .single();
+  if (error) throw new Error(error.message);
+  return rowToLog(data);
 }

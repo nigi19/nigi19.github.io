@@ -2,33 +2,25 @@
 // Core data models
 // ---------------------------------------------------------------------------
 
-export interface User {
-  id: string;
-  email: string;
-  /** SHA-256 hex digest of the password. NOT suitable for real security. */
-  passwordHash: string;
-  createdAt: string; // ISO
-}
-
 export interface Session {
   userId: string;
   email: string;
-  loginTime: string; // ISO
 }
 
 /**
  * A single logged drink entry.
- * Stored in localStorage under STORAGE_KEYS.LOGS.
+ * Stored in Supabase drink_logs table.
  */
 export interface DrinkLog {
-  id: string;          // uuid v4
+  id: string;
   userId: string;
-  beerId: string;      // matches beers.id in SQLite
-  beerName: string;    // denormalised for display without a DB round-trip
+  userEmail: string;    // denormalised for leaderboard display
+  beerId: string;       // matches beers.id in SQLite
+  beerName: string;     // denormalised for display without a DB round-trip
   volumeMl: number;
-  abv: number;         // denormalised from beer at log time
-  consumedAt: string;  // ISO date/time chosen by user
-  createdAt: string;   // ISO timestamp when the log was created
+  abv: number;          // denormalised from beer at log time
+  consumedAt: string;   // ISO date/time chosen by user
+  createdAt: string;    // ISO timestamp when the log was created
 }
 
 /** Minimal beer record returned from the SQLite search. */

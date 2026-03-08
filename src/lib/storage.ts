@@ -12,12 +12,7 @@
  * genuinely sensitive data.
  */
 
-export const STORAGE_KEYS = {
-  USERS: 'beertracker_users_v1',
-  SESSION: 'beertracker_session_v1',
-  LOGS: 'beertracker_logs_v1',
-  CUSTOM_BEERS: 'beertracker_custom_beers_v1',
-} as const;
+export const STORAGE_KEYS = {} as const;
 
 function get<T>(key: string): T | null {
   const raw = localStorage.getItem(key);

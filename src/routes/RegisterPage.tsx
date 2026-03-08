@@ -1,15 +1,14 @@
 import { useState, FormEvent } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { register, login } from '../lib/auth';
-import { useAuth } from '../context/AuthContext';
+import { register } from '../lib/auth';
 
 export default function RegisterPage() {
   const navigate = useNavigate();
-  const { refreshSession } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
@@ -23,30 +22,30 @@ export default function RegisterPage() {
 
     setLoading(true);
     const result = await register(email, password);
+    setLoading(false);
+
     if (!result.ok) {
-      setLoading(false);
       setError(result.error);
       return;
     }
 
-    // Auto-login after successful registration.
-    await login(email, password);
-    setLoading(false);
-    refreshSession();
-    navigate('/');
+    if (result.autoLoggedIn) {
+      navigate('/');
+    } else {
+      setInfo('Account created! Check your email to confirm your account before signing in.');
+    }
   }
 
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <h1>
-          Create account
-        </h1>
+        <h1>Create account</h1>
         <p style={{ color: 'var(--color-text-muted)', marginBottom: 24, fontSize: '0.9rem' }}>
           Join your friends on <strong style={{ color: 'var(--color-accent)' }}>BeerTracker</strong>.
         </p>
 
         {error && <div className="alert alert-error">{error}</div>}
+        {info && <div className="alert alert-success">{info}</div>}
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">

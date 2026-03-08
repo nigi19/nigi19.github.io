@@ -5,40 +5,49 @@ import {
   useEffect,
   ReactNode,
 } from 'react';
+import { Session as SupabaseSession } from '@supabase/supabase-js';
 import { Session } from '../types';
-import { getSession, logout as doLogout } from '../lib/auth';
+import { supabase } from '../lib/supabase';
+import { logout as doLogout } from '../lib/auth';
 
 interface AuthContextValue {
   session: Session | null;
-  refreshSession: () => void;
+  isLoading: boolean;
   logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+function toSession(s: SupabaseSession | null): Session | null {
+  if (!s) return null;
+  return { userId: s.user.id, email: s.user.email ?? '' };
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [session, setSession] = useState<Session | null>(getSession);
+  const [session, setSession] = useState<Session | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  function refreshSession() {
-    setSession(getSession());
-  }
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(toSession(data.session));
+      setIsLoading(false);
+    });
 
-  function logout() {
-    doLogout();
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, s) => {
+      setSession(toSession(s));
+      setIsLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  async function logout() {
+    await doLogout();
     setSession(null);
   }
 
-  // Sync if another tab logs out (storage event).
-  useEffect(() => {
-    function handleStorage() {
-      setSession(getSession());
-    }
-    window.addEventListener('storage', handleStorage);
-    return () => window.removeEventListener('storage', handleStorage);
-  }, []);
-
   return (
-    <AuthContext.Provider value={{ session, refreshSession, logout }}>
+    <AuthContext.Provider value={{ session, isLoading, logout }}>
       {children}
     </AuthContext.Provider>
   );

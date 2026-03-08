@@ -4,8 +4,7 @@
  * Loads beers.sqlite into the browser using sql.js (SQLite compiled to WASM).
  *
  * The entire database is fetched once and held in memory. For ~6 000 beers
- * this is typically < 4 MB — well within browser limits. sql.js-httpvfs
- * would be better for larger datasets but adds significant complexity.
+ * this is typically < 4 MB — well within browser limits.
  *
  * Usage:
  *   const db = await getBeerDb();
@@ -14,7 +13,7 @@
 
 import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
 import { Beer } from '../types';
-import { storage, STORAGE_KEYS } from './storage';
+import { supabase } from './supabase';
 
 // Singleton — we only load the WASM and the DB once.
 let sqlJs: SqlJsStatic | null = null;
@@ -41,14 +40,14 @@ export async function getBeerDb(): Promise<Database> {
   const buffer = await response.arrayBuffer();
   db = new sqlJs.Database(new Uint8Array(buffer));
 
-  // Re-insert any user-added beers from localStorage into the in-memory DB.
-  const customBeers = storage.get<Beer[]>(STORAGE_KEYS.CUSTOM_BEERS) ?? [];
-  if (customBeers.length > 0) {
+  // Re-insert any user-added beers from Supabase into the in-memory DB.
+  const { data: customBeers } = await supabase.from('custom_beers').select('*');
+  if (customBeers && customBeers.length > 0) {
     const stmt = db.prepare(
       'INSERT OR IGNORE INTO beers (id, name, brewery, style, abv, country) VALUES (?, ?, ?, ?, ?, ?)',
     );
     for (const beer of customBeers) {
-      stmt.run([beer.id, beer.name, beer.brewery, beer.style, beer.abv, beer.country]);
+      stmt.run([beer.id, beer.name, beer.brewery, beer.style ?? '', beer.abv, beer.country ?? '']);
     }
     stmt.free();
   }
@@ -160,15 +159,27 @@ export function getDistinctCountries(database: Database): string[] {
   return result[0].values.map((r) => String(r[0]));
 }
 
-/** Add a user-created beer to both the in-memory DB and localStorage. */
-export function addCustomBeer(database: Database, fields: Omit<Beer, 'id'>): Beer {
+/** Add a user-created beer to both Supabase and the in-memory DB. */
+export async function addCustomBeer(database: Database, fields: Omit<Beer, 'id'>): Promise<Beer> {
   const beer: Beer = { id: `custom_${crypto.randomUUID()}`, ...fields };
+
+  const { data: { user } } = await supabase.auth.getUser();
+  const { error } = await supabase.from('custom_beers').insert({
+    id: beer.id,
+    name: beer.name,
+    brewery: beer.brewery,
+    style: beer.style,
+    abv: beer.abv,
+    country: beer.country,
+    added_by: user?.id,
+  });
+  if (error) throw new Error(error.message);
+
   database.run(
     'INSERT INTO beers (id, name, brewery, style, abv, country) VALUES (?, ?, ?, ?, ?, ?)',
     [beer.id, beer.name, beer.brewery, beer.style, beer.abv, beer.country],
   );
-  const existing = storage.get<Beer[]>(STORAGE_KEYS.CUSTOM_BEERS) ?? [];
-  storage.set(STORAGE_KEYS.CUSTOM_BEERS, [...existing, beer]);
+
   return beer;
 }
 
