@@ -183,6 +183,23 @@ export async function addCustomBeer(database: Database, fields: Omit<Beer, 'id'>
   return beer;
 }
 
+/** Return a map of beerId → style for a given set of IDs. */
+export function getStylesForBeerIds(database: Database, ids: string[]): Map<string, string> {
+  if (ids.length === 0) return new Map();
+  const placeholders = ids.map(() => '?').join(',');
+  const result = database.exec(
+    `SELECT id, style FROM beers WHERE id IN (${placeholders})`,
+    ids,
+  );
+  const map = new Map<string, string>();
+  if (result.length > 0) {
+    for (const row of result[0].values) {
+      map.set(String(row[0]), String(row[1]));
+    }
+  }
+  return map;
+}
+
 /** Look up a single beer by its ID (for display purposes). */
 export function getBeerById(database: Database, id: string): Beer | null {
   const result = database.exec(

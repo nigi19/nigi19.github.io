@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   LineChart, Line,
 } from 'recharts';
+import { Database } from 'sql.js';
 import { getAllLogs } from '../lib/stats';
 import { getMostPopularBeers, getDailyActivity } from '../lib/dashboardStats';
+import { getBeerDb, getStylesForBeerIds } from '../lib/beerDb';
 import { DrinkLog } from '../types';
 
 const ACCENT = '#d97706';
@@ -13,13 +15,42 @@ const MUTED  = '#78716c';
 
 export default function DashboardPage() {
   const [logs, setLogs] = useState<DrinkLog[]>([]);
+  const [beerDb, setBeerDb] = useState<Database | null>(null);
   const [loading, setLoading] = useState(true);
+  const [selectedStyle, setSelectedStyle] = useState('');
 
   useEffect(() => {
-    getAllLogs().then(setLogs).finally(() => setLoading(false));
+    Promise.all([getAllLogs(), getBeerDb()])
+      .then(([fetchedLogs, db]) => {
+        setLogs(fetchedLogs);
+        setBeerDb(db);
+      })
+      .finally(() => setLoading(false));
   }, []);
 
-  const popularBeers  = getMostPopularBeers(logs, 10);
+  // Build beerId → style map from the SQLite DB.
+  const styleMap = useMemo(() => {
+    if (!beerDb || logs.length === 0) return new Map<string, string>();
+    const ids = [...new Set(logs.map((l) => l.beerId))];
+    return getStylesForBeerIds(beerDb, ids);
+  }, [beerDb, logs]);
+
+  // Sorted list of distinct styles present in the logs.
+  const availableStyles = useMemo(() => {
+    const styles = new Set<string>();
+    for (const style of styleMap.values()) {
+      if (style) styles.add(style);
+    }
+    return [...styles].sort();
+  }, [styleMap]);
+
+  // Filter logs for the popular-beers chart.
+  const filteredLogs = useMemo(() => {
+    if (!selectedStyle) return logs;
+    return logs.filter((l) => styleMap.get(l.beerId) === selectedStyle);
+  }, [logs, selectedStyle, styleMap]);
+
+  const popularBeers  = getMostPopularBeers(filteredLogs, 10);
   const dailyActivity = getDailyActivity(logs, 30);
 
   if (loading) {
@@ -35,9 +66,23 @@ export default function DashboardPage() {
 
         {/* ── Most popular beers ── */}
         <div className="chart-card chart-card--tall">
-          <div className="chart-card__title">Most popular beers</div>
+          <div className="chart-card__header">
+            <div className="chart-card__title">Most popular beers</div>
+            {availableStyles.length > 0 && (
+              <select
+                value={selectedStyle}
+                onChange={(e) => setSelectedStyle(e.target.value)}
+                style={{ fontSize: '0.8rem' }}
+              >
+                <option value="">All styles</option>
+                {availableStyles.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
+              </select>
+            )}
+          </div>
           {popularBeers.length === 0 ? (
-            <p className="chart-empty">No data yet.</p>
+            <p className="chart-empty">No data{selectedStyle ? ` for ${selectedStyle}` : ''} yet.</p>
           ) : (
             <ResponsiveContainer width="100%" height={320}>
               <BarChart
@@ -66,7 +111,9 @@ export default function DashboardPage() {
 
         {/* ── Beers per day (last 30 days) ── */}
         <div className="chart-card chart-card--tall">
-          <div className="chart-card__title">Beers per day – last 30 days</div>
+          <div className="chart-card__header">
+            <div className="chart-card__title">Beers per day – last 30 days</div>
+          </div>
           {logs.length === 0 ? (
             <p className="chart-empty">No data yet.</p>
           ) : (
