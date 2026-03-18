@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { upsertDisplayName } from './profiles';
 
 export type RegisterResult =
   | { ok: true; autoLoggedIn: boolean }
@@ -14,6 +15,9 @@ export async function register(
 ): Promise<RegisterResult> {
   const { data, error } = await supabase.auth.signUp({ email, password });
   if (error) return { ok: false, error: error.message };
+  if (data.user) {
+    await upsertDisplayName(data.user.id, email.split('@')[0]).catch(() => {});
+  }
   return { ok: true, autoLoggedIn: !!data.session };
 }
 
