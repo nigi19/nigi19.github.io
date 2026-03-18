@@ -498,7 +498,30 @@ textarea:focus {
   margin-bottom: 6px;
   white-space: pre-wrap;
 }
+.fr-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
 .fr-meta { font-size: 0.78rem; color: var(--color-text-muted); }
+
+.fr-card--resolved { opacity: 0.7; }
+.fr-card--resolved .fr-vote-btn { cursor: default; pointer-events: none; }
+
+.fr-resolved-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 8px;
+  border-radius: 20px;
+  background: #dcfce7;
+  color: #15803d;
+  white-space: nowrap;
+}
 
 /* ---------- Mobile ---------- */
 @media (max-width: 600px) {

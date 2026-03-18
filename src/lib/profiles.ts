@@ -1,12 +1,18 @@
 import { supabase } from './supabase';
 
-export async function getDisplayName(userId: string): Promise<string | null> {
+export interface Profile {
+  displayName: string;
+  isAdmin: boolean;
+}
+
+export async function getProfile(userId: string): Promise<Profile | null> {
   const { data } = await supabase
     .from('profiles')
-    .select('display_name')
+    .select('display_name, is_admin')
     .eq('id', userId)
     .single();
-  return data?.display_name ?? null;
+  if (!data) return null;
+  return { displayName: data.display_name, isAdmin: data.is_admin ?? false };
 }
 
 export async function getAllDisplayNames(): Promise<Map<string, string>> {

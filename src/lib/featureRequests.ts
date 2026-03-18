@@ -10,6 +10,8 @@ export interface FeatureRequest {
   description: string;
   priority: Priority;
   createdAt: string;
+  isResolved: boolean;
+  resolvedAt: string | null;
   score: number;
   userVote: 1 | -1 | 0;
 }
@@ -27,6 +29,8 @@ function rowToRequest(row: any, votes: any[], userId: string): FeatureRequest {
     description: row.description ?? '',
     priority: row.priority as Priority,
     createdAt: row.created_at,
+    isResolved: row.is_resolved ?? false,
+    resolvedAt: row.resolved_at ?? null,
     score,
     userVote: myVote ? myVote.vote : 0,
   };
@@ -55,6 +59,14 @@ export async function addFeatureRequest(
     description,
     priority,
   });
+  if (error) throw new Error(error.message);
+}
+
+export async function resolveRequest(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('feature_requests')
+    .update({ is_resolved: true, resolved_at: new Date().toISOString() })
+    .eq('id', id);
   if (error) throw new Error(error.message);
 }
 

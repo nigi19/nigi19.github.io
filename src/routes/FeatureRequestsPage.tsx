@@ -5,6 +5,7 @@ import {
   Priority,
   getFeatureRequests,
   addFeatureRequest,
+  resolveRequest,
   castVote,
 } from '../lib/featureRequests';
 
@@ -14,8 +15,62 @@ const PRIORITY_LABEL: Record<Priority, string> = { low: 'Low', medium: 'Medium',
 type SortField = 'votes' | 'priority';
 type SortOrder = 'asc' | 'desc';
 
+function RequestCard({
+  req,
+  isAdmin,
+  onVote,
+  onResolve,
+}: {
+  req: FeatureRequest;
+  isAdmin: boolean;
+  onVote: (req: FeatureRequest, value: 1 | -1) => void;
+  onResolve?: (req: FeatureRequest) => void;
+}) {
+  return (
+    <div className={'card fr-card' + (req.isResolved ? ' fr-card--resolved' : '')}>
+      <div className="fr-votes">
+        <button
+          className={'fr-vote-btn' + (req.userVote === 1 ? ' active-up' : '')}
+          onClick={() => onVote(req, 1)}
+          title="Upvote"
+          disabled={req.isResolved}
+        >▲</button>
+        <span className="fr-score">{req.score}</span>
+        <button
+          className={'fr-vote-btn' + (req.userVote === -1 ? ' active-down' : '')}
+          onClick={() => onVote(req, -1)}
+          title="Downvote"
+          disabled={req.isResolved}
+        >▼</button>
+      </div>
+
+      <div className="fr-content">
+        <div className="fr-header">
+          <span className="fr-title">{req.title}</span>
+          <span className={'fr-priority fr-priority--' + req.priority}>
+            {PRIORITY_LABEL[req.priority]}
+          </span>
+          {req.isResolved && <span className="fr-resolved-badge">Resolved</span>}
+        </div>
+        {req.description && <p className="fr-description">{req.description}</p>}
+        <div className="fr-footer">
+          <p className="fr-meta">Submitted by {req.userDisplayName}</p>
+          {isAdmin && !req.isResolved && onResolve && (
+            <button
+              className="btn btn-sm btn-secondary"
+              onClick={() => onResolve(req)}
+            >
+              Mark resolved
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function FeatureRequestsPage() {
-  const { session, displayName } = useAuth();
+  const { session, displayName, isAdmin } = useAuth();
 
   const [requests, setRequests] = useState<FeatureRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,9 +116,22 @@ export default function FeatureRequestsPage() {
     }
   }
 
+  async function handleResolve(req: FeatureRequest) {
+    // Optimistic update
+    setRequests((prev) =>
+      prev.map((r) =>
+        r.id === req.id ? { ...r, isResolved: true, resolvedAt: new Date().toISOString() } : r,
+      ),
+    );
+    try {
+      await resolveRequest(req.id);
+    } catch {
+      load(); // revert on error
+    }
+  }
+
   async function handleVote(req: FeatureRequest, value: 1 | -1) {
     if (!session) return;
-    // Optimistic update
     setRequests((prev) =>
       prev.map((r) => {
         if (r.id !== req.id) return r;
@@ -78,17 +146,19 @@ export default function FeatureRequestsPage() {
     try {
       await castVote(session.userId, req.id, value, req.userVote);
     } catch {
-      load(); // revert on error
+      load();
     }
   }
 
-  const sorted = [...requests].sort((a, b) => {
-    const mul = sortOrder === 'desc' ? -1 : 1;
-    if (sortField === 'priority') {
-      return mul * (PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
-    }
-    return mul * (a.score - b.score);
-  });
+  function applySorting(list: FeatureRequest[]): FeatureRequest[] {
+    return [...list].sort((a, b) => {
+      const mul = sortOrder === 'desc' ? -1 : 1;
+      if (sortField === 'priority') {
+        return mul * (PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]);
+      }
+      return mul * (a.score - b.score);
+    });
+  }
 
   function toggleOrder(field: SortField) {
     if (sortField === field) {
@@ -101,6 +171,12 @@ export default function FeatureRequestsPage() {
 
   const arrow = (field: SortField) =>
     sortField === field ? (sortOrder === 'desc' ? ' ↓' : ' ↑') : '';
+
+  const open = applySorting(requests.filter((r) => !r.isResolved));
+  const resolved = requests
+    .filter((r) => r.isResolved)
+    .sort((a, b) => new Date(b.resolvedAt!).getTime() - new Date(a.resolvedAt!).getTime())
+    .slice(0, 5);
 
   return (
     <>
@@ -116,7 +192,6 @@ export default function FeatureRequestsPage() {
 
       {error && <div className="alert alert-error">{error}</div>}
 
-      {/* Submission form */}
       {showForm && (
         <div className="card" style={{ marginBottom: 24 }}>
           <h2 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: 16 }}>New feature request</h2>
@@ -185,48 +260,46 @@ export default function FeatureRequestsPage() {
         </button>
       </div>
 
-      {/* Feature list */}
       {loading ? (
         <div className="loading"><div className="spinner" /></div>
-      ) : sorted.length === 0 ? (
-        <div className="card" style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
-          No feature requests yet. Be the first!
-        </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {sorted.map((req) => (
-            <div key={req.id} className="card fr-card">
-              {/* Vote column */}
-              <div className="fr-votes">
-                <button
-                  className={'fr-vote-btn' + (req.userVote === 1 ? ' active-up' : '')}
-                  onClick={() => handleVote(req, 1)}
-                  title="Upvote"
-                >▲</button>
-                <span className="fr-score">{req.score}</span>
-                <button
-                  className={'fr-vote-btn' + (req.userVote === -1 ? ' active-down' : '')}
-                  onClick={() => handleVote(req, -1)}
-                  title="Downvote"
-                >▼</button>
-              </div>
-
-              {/* Content */}
-              <div className="fr-content">
-                <div className="fr-header">
-                  <span className="fr-title">{req.title}</span>
-                  <span className={'fr-priority fr-priority--' + req.priority}>
-                    {PRIORITY_LABEL[req.priority]}
-                  </span>
-                </div>
-                {req.description && (
-                  <p className="fr-description">{req.description}</p>
-                )}
-                <p className="fr-meta">Submitted by {req.userDisplayName}</p>
-              </div>
+        <>
+          {/* Open requests */}
+          {open.length === 0 ? (
+            <div className="card" style={{ color: 'var(--color-text-muted)', fontStyle: 'italic', marginBottom: 32 }}>
+              No open feature requests yet. Be the first!
             </div>
-          ))}
-        </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 32 }}>
+              {open.map((req) => (
+                <RequestCard
+                  key={req.id}
+                  req={req}
+                  isAdmin={isAdmin}
+                  onVote={handleVote}
+                  onResolve={handleResolve}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Resolved requests */}
+          {resolved.length > 0 && (
+            <>
+              <div className="section-title">Recently resolved</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {resolved.map((req) => (
+                  <RequestCard
+                    key={req.id}
+                    req={req}
+                    isAdmin={isAdmin}
+                    onVote={handleVote}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </>
       )}
     </>
   );
