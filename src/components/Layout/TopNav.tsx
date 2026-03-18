@@ -25,10 +25,10 @@ export default function TopNav() {
           Beers
         </NavLink>
         <NavLink
-          to="/me"
+          to="/stats"
           className={({ isActive }) => 'topnav__link' + (isActive ? ' active' : '')}
         >
-          My Stats
+          Stats
         </NavLink>
         <NavLink
           to="/requests"

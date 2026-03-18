@@ -15,6 +15,14 @@ export async function getProfile(userId: string): Promise<Profile | null> {
   return { displayName: data.display_name, isAdmin: data.is_admin ?? false };
 }
 
+export async function getAllProfiles(): Promise<{ id: string; displayName: string }[]> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('id, display_name')
+    .order('display_name');
+  return (data ?? []).map((row) => ({ id: row.id, displayName: row.display_name }));
+}
+
 export async function getAllDisplayNames(): Promise<Map<string, string>> {
   const { data } = await supabase
     .from('profiles')

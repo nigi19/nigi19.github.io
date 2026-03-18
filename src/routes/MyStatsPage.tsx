@@ -1,30 +1,69 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getLogsForUser, getPersonalStats } from '../lib/stats';
+import { getAllProfiles } from '../lib/profiles';
 import { DrinkLog } from '../types';
 import { formatDateTime } from '../lib/dates';
 
-export default function MyStatsPage() {
+export default function StatsPage() {
   const { session, displayName } = useAuth();
+
+  const [users, setUsers] = useState<{ id: string; displayName: string }[]>([]);
+  const [selectedId, setSelectedId] = useState('');
   const [logs, setLogs] = useState<DrinkLog[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Load all profiles for the dropdown.
   useEffect(() => {
     if (!session) return;
-    getLogsForUser(session.userId)
+    getAllProfiles().then((profiles) => {
+      // Ensure current user is always in the list.
+      const hasCurrentUser = profiles.some((p) => p.id === session.userId);
+      const list = hasCurrentUser
+        ? profiles
+        : [{ id: session.userId, displayName }, ...profiles];
+      setUsers(list);
+      setSelectedId(session.userId);
+    });
+  }, [session]);
+
+  // Load logs whenever selected user changes.
+  useEffect(() => {
+    if (!selectedId) return;
+    setLoading(true);
+    getLogsForUser(selectedId)
       .then(setLogs)
       .finally(() => setLoading(false));
-  }, [session]);
+  }, [selectedId]);
 
   if (!session) return null;
 
+  const selectedName = users.find((u) => u.id === selectedId)?.displayName ?? displayName;
+  const isOwnProfile = selectedId === session.userId;
   const stats = getPersonalStats(logs);
   const recent = logs.slice(0, 10);
 
   return (
     <>
-      <h1 className="page-title">My Stats</h1>
-      <p className="page-subtitle">Everything you've logged, {displayName}.</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 4 }}>
+        <h1 className="page-title" style={{ marginBottom: 0 }}>Stats</h1>
+        {users.length > 1 && (
+          <select
+            value={selectedId}
+            onChange={(e) => setSelectedId(e.target.value)}
+            style={{ maxWidth: 200 }}
+          >
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.displayName}{u.id === session.userId ? ' (you)' : ''}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+      <p className="page-subtitle">
+        {isOwnProfile ? `Everything you've logged, ${selectedName}.` : `Stats for ${selectedName}.`}
+      </p>
 
       {loading ? (
         <div className="loading"><div className="spinner" /></div>
@@ -57,8 +96,9 @@ export default function MyStatsPage() {
 
           {recent.length === 0 ? (
             <div className="card" style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
-              No beers logged yet. Head to the{' '}
-              <a href="#/beers">Beer Catalog</a> to log your first one!
+              {isOwnProfile
+                ? <>No beers logged yet. Head to the <a href="#/beers">Beer Catalog</a> to log your first one!</>
+                : `${selectedName} hasn't logged any beers yet.`}
             </div>
           ) : (
             <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
