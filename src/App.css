@@ -537,8 +537,8 @@ textarea:focus {
   .beer-table th:nth-child(5), .beer-table td:nth-child(5) { display: none; }
   .beer-table td:last-child { white-space: nowrap; }
 
-  .dashboard-grid { grid-template-columns: 1fr; }
 }
+
 
 /* ============================================================
    Dashboard
@@ -556,6 +556,7 @@ textarea:focus {
   border-radius: var(--radius);
   padding: 20px 24px;
   box-shadow: var(--shadow);
+  min-width: 0; /* lets recharts ResponsiveContainer shrink correctly */
 }
 
 .chart-card--tall {
@@ -631,4 +632,10 @@ textarea:focus {
   font-size: 0.85rem;
   color: var(--color-text-muted);
   line-height: 1.4;
+}
+
+@media (max-width: 600px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .chart-card__header { flex-wrap: wrap; }
+  .cumul-toggles { gap: 4px; }
 }
