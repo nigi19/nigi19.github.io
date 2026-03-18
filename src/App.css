@@ -584,6 +584,28 @@ textarea:focus {
   font-size: 0.9rem;
 }
 
+.cumul-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cumul-toggle {
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1.5px solid;
+  background: transparent;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  line-height: 1.4;
+}
+
+.cumul-toggle:hover {
+  opacity: 0.8;
+}
+
 .dashboard-ideas {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));

@@ -5,50 +5,77 @@ import {
 } from 'recharts';
 import { Database } from 'sql.js';
 import { getAllLogs } from '../lib/stats';
-import { getMostPopularBeers, getDailyActivity } from '../lib/dashboardStats';
+import { getMostPopularBeers, getDailyActivity, getCumulativePerPerson } from '../lib/dashboardStats';
 import { getBeerDb, getStylesForBeerIds } from '../lib/beerDb';
+import { getAllDisplayNames } from '../lib/profiles';
 import { DrinkLog } from '../types';
 
 const ACCENT = '#d97706';
 const GRID   = '#e0d6c3';
 const MUTED  = '#78716c';
 
+const PALETTE = [
+  '#d97706', '#2563eb', '#16a34a', '#dc2626',
+  '#7c3aed', '#db2777', '#0891b2', '#ca8a04',
+];
+
 export default function DashboardPage() {
-  const [logs, setLogs] = useState<DrinkLog[]>([]);
-  const [beerDb, setBeerDb] = useState<Database | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [logs, setLogs]         = useState<DrinkLog[]>([]);
+  const [beerDb, setBeerDb]     = useState<Database | null>(null);
+  const [displayNames, setDisplayNames] = useState<Map<string, string>>(new Map());
+  const [loading, setLoading]   = useState(true);
+
+  // Popular beers filter
   const [selectedStyle, setSelectedStyle] = useState('');
 
+  // Cumulative chart: set of visible userIds (all visible by default)
+  const [hiddenUsers, setHiddenUsers] = useState<Set<string>>(new Set());
+
   useEffect(() => {
-    Promise.all([getAllLogs(), getBeerDb()])
-      .then(([fetchedLogs, db]) => {
+    Promise.all([getAllLogs(), getBeerDb(), getAllDisplayNames()])
+      .then(([fetchedLogs, db, names]) => {
         setLogs(fetchedLogs);
         setBeerDb(db);
+        setDisplayNames(names);
       })
       .finally(() => setLoading(false));
   }, []);
 
-  // Build beerId → style map from the SQLite DB.
+  // ── Style map & filter (popular beers chart) ────────────────────────────
   const styleMap = useMemo(() => {
     if (!beerDb || logs.length === 0) return new Map<string, string>();
     const ids = [...new Set(logs.map((l) => l.beerId))];
     return getStylesForBeerIds(beerDb, ids);
   }, [beerDb, logs]);
 
-  // Sorted list of distinct styles present in the logs.
   const availableStyles = useMemo(() => {
     const styles = new Set<string>();
-    for (const style of styleMap.values()) {
-      if (style) styles.add(style);
-    }
+    for (const style of styleMap.values()) if (style) styles.add(style);
     return [...styles].sort();
   }, [styleMap]);
 
-  // Filter logs for the popular-beers chart.
-  const filteredLogs = useMemo(() => {
-    if (!selectedStyle) return logs;
-    return logs.filter((l) => styleMap.get(l.beerId) === selectedStyle);
-  }, [logs, selectedStyle, styleMap]);
+  const filteredLogs = useMemo(() =>
+    selectedStyle ? logs.filter((l) => styleMap.get(l.beerId) === selectedStyle) : logs,
+  [logs, selectedStyle, styleMap]);
+
+  // ── Cumulative per-person data ──────────────────────────────────────────
+  const { rows: cumulRows, users: cumulUsers } = useMemo(
+    () => getCumulativePerPerson(logs, displayNames),
+    [logs, displayNames],
+  );
+
+  // X-axis interval: show ~8 labels regardless of range length
+  const xInterval = cumulRows.length > 0
+    ? Math.max(1, Math.floor(cumulRows.length / 8))
+    : 1;
+
+  function toggleUser(userId: string) {
+    setHiddenUsers((prev) => {
+      const next = new Set(prev);
+      next.has(userId) ? next.delete(userId) : next.add(userId);
+      return next;
+    });
+  }
 
   const popularBeers  = getMostPopularBeers(filteredLogs, 10);
   const dailyActivity = getDailyActivity(logs, 30);
@@ -148,6 +175,66 @@ export default function DashboardPage() {
 
       </div>
 
+      {/* ── Cumulative beers per person ── */}
+      {cumulUsers.length > 0 && (
+        <div className="chart-card" style={{ marginTop: 24 }}>
+          <div className="chart-card__header">
+            <div className="chart-card__title">Cumulative beers per person – all time</div>
+            <div className="cumul-toggles">
+              {cumulUsers.map((u, i) => {
+                const color = PALETTE[i % PALETTE.length];
+                const active = !hiddenUsers.has(u.userId);
+                return (
+                  <button
+                    key={u.userId}
+                    className={'cumul-toggle' + (active ? ' cumul-toggle--active' : '')}
+                    style={active ? { borderColor: color, background: color, color: '#fff' } : { borderColor: color, color }}
+                    onClick={() => toggleUser(u.userId)}
+                  >
+                    {u.displayName}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={320}>
+            <LineChart
+              data={cumulRows}
+              margin={{ top: 4, right: 16, bottom: 0, left: -8 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke={GRID} />
+              <XAxis
+                dataKey="date"
+                tick={{ fontSize: 11, fill: MUTED }}
+                interval={xInterval}
+              />
+              <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: MUTED }} />
+              <Tooltip
+                contentStyle={{ fontSize: 13, borderColor: GRID }}
+                formatter={(v, name) => {
+                  const user = cumulUsers.find((u) => u.userId === name);
+                  return [v, user?.displayName ?? name];
+                }}
+              />
+              {cumulUsers.map((u, i) =>
+                hiddenUsers.has(u.userId) ? null : (
+                  <Line
+                    key={u.userId}
+                    type="monotone"
+                    dataKey={u.userId}
+                    name={u.userId}
+                    stroke={PALETTE[i % PALETTE.length]}
+                    strokeWidth={2}
+                    dot={false}
+                    activeDot={{ r: 5 }}
+                  />
+                ),
+              )}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
       {/* ── Ideas section ── */}
       <div className="section-title" style={{ marginTop: 32 }}>Coming soon — ideas</div>
       <div className="dashboard-ideas">
@@ -163,10 +250,6 @@ export default function DashboardPage() {
           {
             title: 'Most active hour',
             desc: 'Bar chart by hour of day — find out when the group drinks most.',
-          },
-          {
-            title: 'Per-person totals over time',
-            desc: 'Multi-line chart with a line per user showing their cumulative beer count.',
           },
         ].map((idea) => (
           <div key={idea.title} className="idea-card">
