@@ -94,7 +94,101 @@ a:hover { text-decoration: underline; }
   font-size: 0.85rem;
   transition: background 0.15s;
 }
-.topnav__logout:hover { background: rgba(255,255,255,0.15); }
+.topnav__logout:hover { background: rgba(255,255,255,0.15); text-decoration: none; }
+
+/* Hamburger button — hidden on desktop */
+.topnav__hamburger {
+  display: none;
+}
+
+/* User link inside drawer — hidden on desktop, shown only in mobile drawer */
+.topnav__link--user {
+  display: none;
+}
+
+@media (max-width: 700px) {
+  /* Let the nav wrap to a second row when open */
+  .topnav {
+    flex-wrap: wrap;
+    height: auto;
+    min-height: 56px;
+    padding: 0 8px 0 16px;
+    align-items: stretch;
+  }
+
+  .topnav__brand {
+    height: 56px;
+    display: flex;
+    align-items: center;
+    flex: 1;
+  }
+
+  /* Desktop user pill hidden on mobile — it lives inside the drawer */
+  .topnav__logout { display: none; }
+
+  /* Drawer: hidden by default */
+  .topnav__links {
+    display: none;
+    width: 100%;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 0 12px;
+    border-top: 1px solid rgba(255,255,255,0.1);
+  }
+
+  /* Drawer: visible when open */
+  .topnav--open .topnav__links { display: flex; }
+
+  .topnav__link {
+    padding: 10px 16px;
+    border-radius: 4px;
+    font-size: 0.95rem;
+  }
+
+  /* User link inside drawer — show it here (hidden on desktop) */
+  .topnav__link--user {
+    display: block;
+    margin-top: 6px;
+    border: 1px solid rgba(255,255,255,0.3);
+    text-align: center;
+    border-radius: var(--radius);
+  }
+
+  /* Hamburger button */
+  .topnav__hamburger {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    width: 44px;
+    height: 56px;
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0 10px;
+  }
+
+  .topnav__hamburger span {
+    display: block;
+    height: 2px;
+    background: var(--color-nav-text);
+    border-radius: 2px;
+    transition: opacity 0.2s, transform 0.2s;
+    transform-origin: center;
+  }
+
+  /* Animate to X when open */
+  .topnav--open .topnav__hamburger span:nth-child(1) {
+    transform: translateY(7px) rotate(45deg);
+  }
+  .topnav--open .topnav__hamburger span:nth-child(2) {
+    opacity: 0;
+  }
+  .topnav--open .topnav__hamburger span:nth-child(3) {
+    transform: translateY(-7px) rotate(-45deg);
+  }
+}
 
 /* ---------- Auth pages ---------- */
 .auth-page {
@@ -528,9 +622,6 @@ textarea:focus {
   .rankings-grid { grid-template-columns: 1fr; }
   .search-bar { flex-direction: column; }
   .search-bar input[type="text"], .search-bar select { width: 100%; }
-  .topnav__links { gap: 0; }
-  .topnav__link { padding: 6px 8px; font-size: 0.8rem; }
-
   /* Beer table: keep Name, ABV, Log — hide the rest */
   .beer-table th:nth-child(2), .beer-table td:nth-child(2),
   .beer-table th:nth-child(3), .beer-table td:nth-child(3),
