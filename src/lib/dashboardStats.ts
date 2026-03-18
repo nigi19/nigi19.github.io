@@ -22,6 +22,28 @@ export function getMostPopularBeers(logs: DrinkLog[], limit = 10): BeerPopularit
     .slice(0, limit);
 }
 
+export interface AbvBucket {
+  label: string;
+  count: number;
+}
+
+const ABV_BUCKETS: Array<{ label: string; min: number; max: number }> = [
+  { label: '<4%',   min: 0,   max: 4   },
+  { label: '4–5%',  min: 4,   max: 5   },
+  { label: '5–6%',  min: 5,   max: 6   },
+  { label: '6–8%',  min: 6,   max: 8   },
+  { label: '8–10%', min: 8,   max: 10  },
+  { label: '10%+',  min: 10,  max: Infinity },
+];
+
+/** Count logged beers per ABV bucket. */
+export function getAbvDistribution(logs: DrinkLog[]): AbvBucket[] {
+  return ABV_BUCKETS.map(({ label, min, max }) => ({
+    label,
+    count: logs.filter((l) => l.abv >= min && l.abv < max).length,
+  }));
+}
+
 export interface CumulativePersonData {
   /** One row per day from earliest log to today. Keys: "date" + one userId per person. */
   rows: Array<Record<string, string | number>>;

@@ -651,9 +651,12 @@ textarea:focus {
 }
 
 .chart-card--tall {
-  /* ensures both cards stay the same height */
   display: flex;
   flex-direction: column;
+}
+
+.chart-card--wide {
+  grid-column: span 2;
 }
 
 .chart-card__header {
@@ -727,6 +730,7 @@ textarea:focus {
 
 @media (max-width: 600px) {
   .dashboard-grid { grid-template-columns: 1fr; }
+  .chart-card--wide { grid-column: span 1; }
   .chart-card__header { flex-wrap: wrap; }
   .cumul-toggles { gap: 4px; }
 }

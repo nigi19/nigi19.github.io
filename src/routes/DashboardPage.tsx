@@ -5,7 +5,7 @@ import {
 } from 'recharts';
 import { Database } from 'sql.js';
 import { getAllLogs } from '../lib/stats';
-import { getMostPopularBeers, getDailyActivity, getCumulativePerPerson } from '../lib/dashboardStats';
+import { getMostPopularBeers, getDailyActivity, getCumulativePerPerson, getAbvDistribution } from '../lib/dashboardStats';
 import { getBeerDb, getStylesForBeerIds } from '../lib/beerDb';
 import { getAllDisplayNames } from '../lib/profiles';
 import { DrinkLog } from '../types';
@@ -77,8 +77,9 @@ export default function DashboardPage() {
     });
   }
 
-  const popularBeers  = getMostPopularBeers(filteredLogs, 10);
-  const dailyActivity = getDailyActivity(logs, 30);
+  const popularBeers   = getMostPopularBeers(filteredLogs, 10);
+  const dailyActivity  = getDailyActivity(logs, 30);
+  const abvDistribution = getAbvDistribution(logs);
 
   if (loading) {
     return <div className="loading"><div className="spinner" /></div>;
@@ -136,8 +137,34 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* ── Beers per day (last 30 days) ── */}
+        {/* ── ABV distribution ── */}
         <div className="chart-card chart-card--tall">
+          <div className="chart-card__header">
+            <div className="chart-card__title">ABV distribution</div>
+          </div>
+          {logs.length === 0 ? (
+            <p className="chart-empty">No data yet.</p>
+          ) : (
+            <ResponsiveContainer width="100%" height={320}>
+              <BarChart
+                data={abvDistribution}
+                margin={{ top: 0, right: 16, bottom: 0, left: -16 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={GRID} />
+                <XAxis dataKey="label" tick={{ fontSize: 12, fill: MUTED }} />
+                <YAxis allowDecimals={false} tick={{ fontSize: 12, fill: MUTED }} />
+                <Tooltip
+                  formatter={(v) => [Number(v) === 1 ? '1 beer' : `${v} beers`, 'Logged']}
+                  contentStyle={{ fontSize: 13, borderColor: GRID }}
+                />
+                <Bar dataKey="count" fill={ACCENT} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* ── Beers per day (last 30 days) ── */}
+        <div className="chart-card chart-card--tall chart-card--wide">
           <div className="chart-card__header">
             <div className="chart-card__title">Beers per day – last 30 days</div>
           </div>
@@ -239,10 +266,6 @@ export default function DashboardPage() {
       <div className="section-title" style={{ marginTop: 32 }}>Coming soon — ideas</div>
       <div className="dashboard-ideas">
         {[
-          {
-            title: 'ABV distribution',
-            desc: 'Bucketed histogram (2–4%, 4–6%, 6–8%, …) showing which ABV range you collectively prefer.',
-          },
           {
             title: 'Beers by style',
             desc: 'Donut chart of logged beers grouped by style (IPA, Stout, Lager, …).',
