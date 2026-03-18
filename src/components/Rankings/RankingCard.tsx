@@ -1,5 +1,4 @@
 import { RankingEntry } from '../../types';
-import { displayName } from '../../lib/auth';
 
 interface Props {
   title: string;
@@ -18,7 +17,7 @@ export default function RankingCard({ title, entries }: Props) {
           <div key={entry.userId} className="ranking-row">
             <span className="ranking-row__pos">#{i + 1}</span>
             <span className="ranking-row__name" title={entry.email}>
-              {displayName(entry.email)}
+              {entry.email}
             </span>
             <span className="ranking-row__value">{entry.formattedValue}</span>
           </div>

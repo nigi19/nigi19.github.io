@@ -9,6 +9,8 @@ import HomePage from './routes/HomePage';
 import BeersPage from './routes/BeersPage';
 import MyStatsPage from './routes/MyStatsPage';
 import DebugPage from './routes/DebugPage';
+import SettingsPage from './routes/SettingsPage';
+import FeatureRequestsPage from './routes/FeatureRequestsPage';
 import NotFoundPage from './routes/NotFoundPage';
 
 /**
@@ -39,6 +41,8 @@ export default function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/beers" element={<BeersPage />} />
             <Route path="/me" element={<MyStatsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/requests" element={<FeatureRequestsPage />} />
             <Route path="/debug" element={<DebugPage />} />
           </Route>
 

@@ -5,7 +5,7 @@ import { DrinkLog } from '../types';
 import { formatDateTime } from '../lib/dates';
 
 export default function MyStatsPage() {
-  const { session } = useAuth();
+  const { session, displayName } = useAuth();
   const [logs, setLogs] = useState<DrinkLog[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -19,12 +19,12 @@ export default function MyStatsPage() {
   if (!session) return null;
 
   const stats = getPersonalStats(logs);
-  const recent = logs.slice(0, 10); // already sorted by consumed_at desc from Supabase
+  const recent = logs.slice(0, 10);
 
   return (
     <>
       <h1 className="page-title">My Stats</h1>
-      <p className="page-subtitle">Everything you've logged, {session.email.split('@')[0]}.</p>
+      <p className="page-subtitle">Everything you've logged, {displayName}.</p>
 
       {loading ? (
         <div className="loading"><div className="spinner" /></div>

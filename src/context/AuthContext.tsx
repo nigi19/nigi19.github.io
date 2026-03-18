@@ -9,10 +9,13 @@ import { Session as SupabaseSession } from '@supabase/supabase-js';
 import { Session } from '../types';
 import { supabase } from '../lib/supabase';
 import { logout as doLogout } from '../lib/auth';
+import { getDisplayName } from '../lib/profiles';
 
 interface AuthContextValue {
   session: Session | null;
   isLoading: boolean;
+  displayName: string;
+  refreshDisplayName: () => void;
   logout: () => void;
 }
 
@@ -26,6 +29,7 @@ function toSession(s: SupabaseSession | null): Session | null {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [displayName, setDisplayName] = useState('');
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -41,13 +45,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Fetch display name whenever the logged-in user changes.
+  useEffect(() => {
+    if (!session) { setDisplayName(''); return; }
+    getDisplayName(session.userId).then((name) => {
+      setDisplayName(name ?? session.email.split('@')[0]);
+    });
+  }, [session?.userId]);
+
+  function refreshDisplayName() {
+    if (!session) return;
+    getDisplayName(session.userId).then((name) => {
+      setDisplayName(name ?? session.email.split('@')[0]);
+    });
+  }
+
   async function logout() {
     await doLogout();
     setSession(null);
   }
 
   return (
-    <AuthContext.Provider value={{ session, isLoading, logout }}>
+    <AuthContext.Provider value={{ session, isLoading, displayName, refreshDisplayName, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,22 +1,31 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { getAllLogs, getMostVolumeRanking, getMostBeersRanking, getHighestAbvRanking, getMostDistinctBeersRanking } from '../lib/stats';
-import { DrinkLog, TimeRange, TimeRangePreset } from '../types';
+import { getAllDisplayNames } from '../lib/profiles';
+import { DrinkLog, RankingEntry, TimeRange, TimeRangePreset } from '../types';
 import { getThisWeekRange, getLastWeekRange, getThisMonthRange, getLastMonthRange } from '../lib/dates';
 import TimeRangeSelector from '../components/TimeRangeSelector';
 import RankingCard from '../components/Rankings/RankingCard';
 
+function applyDisplayNames(entries: RankingEntry[], names: Map<string, string>): RankingEntry[] {
+  return entries.map((e) => ({
+    ...e,
+    email: names.get(e.userId) ?? e.email.split('@')[0],
+  }));
+}
+
 export default function HomePage() {
-  const { session } = useAuth();
+  const { displayName } = useAuth();
   const [logs, setLogs] = useState<DrinkLog[]>([]);
+  const [names, setNames] = useState<Map<string, string>>(new Map());
   const [loading, setLoading] = useState(true);
 
   const [preset, setPreset] = useState<TimeRangePreset>('this-week');
   const [customRange, setCustomRange] = useState<TimeRange>(getThisWeekRange());
 
   useEffect(() => {
-    getAllLogs()
-      .then(setLogs)
+    Promise.all([getAllLogs(), getAllDisplayNames()])
+      .then(([l, n]) => { setLogs(l); setNames(n); })
       .finally(() => setLoading(false));
   }, []);
 
@@ -31,16 +40,16 @@ export default function HomePage() {
   }
 
   const range = getRange();
-  const volumeRanking   = getMostVolumeRanking(logs, range);
-  const beersRanking    = getMostBeersRanking(logs, range);
-  const abvRanking      = getHighestAbvRanking(logs, range);
-  const distinctRanking = getMostDistinctBeersRanking(logs, range);
+  const volumeRanking   = applyDisplayNames(getMostVolumeRanking(logs, range), names);
+  const beersRanking    = applyDisplayNames(getMostBeersRanking(logs, range), names);
+  const abvRanking      = applyDisplayNames(getHighestAbvRanking(logs, range), names);
+  const distinctRanking = applyDisplayNames(getMostDistinctBeersRanking(logs, range), names);
 
   return (
     <>
       <h1 className="page-title">Leaderboard</h1>
       <p className="page-subtitle">
-        Hey <strong>{session?.email.split('@')[0]}</strong> — see how everyone's doing.
+        Hey <strong>{displayName}</strong> — see how everyone's doing.
       </p>
 
       <TimeRangeSelector
