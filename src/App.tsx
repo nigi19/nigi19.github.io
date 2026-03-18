@@ -11,6 +11,7 @@ import MyStatsPage from './routes/MyStatsPage';
 import DebugPage from './routes/DebugPage';
 import SettingsPage from './routes/SettingsPage';
 import FeatureRequestsPage from './routes/FeatureRequestsPage';
+import DashboardPage from './routes/DashboardPage';
 import NotFoundPage from './routes/NotFoundPage';
 
 /**
@@ -43,6 +44,7 @@ export default function App() {
             <Route path="/stats" element={<MyStatsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/requests" element={<FeatureRequestsPage />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/debug" element={<DebugPage />} />
           </Route>
 

@@ -36,6 +36,12 @@ export default function TopNav() {
         >
           Requests
         </NavLink>
+        <NavLink
+          to="/dashboard"
+          className={({ isActive }) => 'topnav__link' + (isActive ? ' active' : '')}
+        >
+          Dashboard
+        </NavLink>
       </div>
 
       {session && (
